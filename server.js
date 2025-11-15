@@ -1,56 +1,56 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const http = require("http");
+const { Server } = require("socket.io");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Replace with your real MongoDB Atlas URL
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+  }
+});
+
 mongoose.connect("mongodb+srv://azadrideofficial_db_user:1id9rGQ5H9f6NVxc@azadride.aanyvmc.mongodb.net/?appName=azadride")
   .then(() => console.log("MongoDB Connected"))
   .catch(err => console.log(err));
 
-// 👇 YOUR COLLECTION NAME = "messages"
 const MessageSchema = new mongoose.Schema({
   name: String,
   email: String,
-  message: String,   // You can add any fields you want
-}, {
-  collection: "messages"   // 👈 FORCE collection name
-});
+  message: String,
+}, { collection: "messages" });
 
 const Message = mongoose.model("Message", MessageSchema);
 
-// API endpoint to save a message
+// POST API - save message
 app.post("/add", async (req, res) => {
   try {
-    const { name, email, message } = req.body;
-
-    const msg = new Message({ name, email, message });
+    const msg = new Message(req.body);
     await msg.save();
 
-    res.json({ message: "Message saved successfully!" });
+    // 🔥 Send real-time event to all connected dashboards
+    io.emit("new_message", msg);
+
+    res.json({ message: "Ride created & sent!" });
   } catch (error) {
-    res.status(500).json({ error: "Error saving message" });
+    res.status(500).json({ error: "Error saving data" });
   }
 });
 
-// Get all messages
+// GET API - fetch all messages
 app.get("/messages", async (req, res) => {
-  try {
-    const messages = await Message.find();
-    res.json(messages);
-  } catch (error) {
-    res.status(500).json({ error: "Error fetching messages" });
-  }
+  const messages = await Message.find();
+  res.json(messages);
 });
 
-
-// Test route
-app.get("/", (req, res) => {
-  res.send("Server running");
+io.on("connection", (socket) => {
+  console.log("Dashboard connected");
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
